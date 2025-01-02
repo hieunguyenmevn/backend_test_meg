@@ -14,10 +14,6 @@ from app.schemas.recipe import (
 
 router = APIRouter()
 
-@router.get("/")
-def read_root():
-    return {"health": "OK"}
-
 @router.post("/recipes", response_model=Union[RecipeResponse, ErrorResponse])
 async def create_recipe(request: Request, db: Session = Depends(get_db)):
     body = await request.json()
