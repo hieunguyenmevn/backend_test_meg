@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
+from typing import Union
 from app.core.database import get_db
 from app.models.recipe import Recipe
 from app.schemas.recipe import (
-    RecipeCreate,
     RecipeUpdate,
     RecipeResponse,
     RecipesListResponse,
@@ -13,10 +14,31 @@ from app.schemas.recipe import (
 
 router = APIRouter()
 
-@router.post("/recipes", response_model=RecipeResponse)
-def create_recipe(recipe: RecipeCreate, db: Session = Depends(get_db)):
+@router.get("/")
+def read_root():
+    return {"health": "OK"}
+
+@router.post("/recipes", response_model=Union[RecipeResponse, ErrorResponse])
+async def create_recipe(request: Request, db: Session = Depends(get_db)):
+    body = await request.json()
+
+    required_fields = ['title', 'making_time', 'serves', 'ingredients', 'cost']
+    if not all(field in body for field in required_fields):
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "message": "Recipe creation failed!",
+                    "required": "title, making_time, serves, ingredients, cost"
+                }
+            )
     try:
-        db_recipe = Recipe(**recipe.model_dump())
+        db_recipe = Recipe(
+            title=body['title'],
+            making_time=body['making_time'],
+            serves=body['serves'],
+            ingredients=body['ingredients'],
+            cost=body['cost']
+        )
         db.add(db_recipe)
         db.commit()
         db.refresh(db_recipe)
@@ -26,8 +48,12 @@ def create_recipe(recipe: RecipeCreate, db: Session = Depends(get_db)):
         }
     except Exception:
         db.rollback()
-        return ErrorResponse(
-            message="Recipe creation failed!"
+        return JSONResponse(
+            status_code=200,
+            content={
+                "message": "Recipe creation failed!",
+                "required": "title, making_time, serves, ingredients, cost"
+            }
         )
 
 @router.get("/recipes", response_model=RecipesListResponse)
